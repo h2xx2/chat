@@ -7,24 +7,35 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
 
 # Инициализация Pinecone
-pinecone.init(api_key=PINECONE_API_KEY, environment="us-west1-gcp")
-index = pinecone.Index("courses")  # Имя индекса
+pc = pinecone.Pinecone(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
 
+# Индекс для работы
+index_name = "cource"
+if index_name not in pc.list_indexes().names():
+    pc.create_index(
+        name=index_name,
+        dimension=1536,  # Размер эмбеддингов
+        metric="cosine",
+        spec=pinecone.ServerlessSpec(cloud="aws", region=PINECONE_ENVIRONMENT)
+    )
+
+# Используем правильное создание индекса
+index = pc.Index(index_name)
 
 def get_course_info(query):
-    """Ищет похожие курсы в Pinecone и передает их в OpenAI."""
+    """Ищет похожие курсы с помощью Pinecone и передает их в OpenAI."""
 
-    # Генерируем эмбеддинг для запроса пользователя
+    # Генерация эмбеддингов с использованием нового API
     response = openai.Embedding.create(
-        input=query,
-        model="text-embedding-ada-002",
-        api_key=OPENAI_API_KEY
+        model="text-embedding-ada-002",  # Используем модель для эмбеддингов
+        input=query
     )
-    vector = response["data"][0]["embedding"]
+    vector = response['data'][0]['embedding']  # Извлекаем эмбеддинг из ответа
 
-    # Ищем похожие курсы
+    # Ищем похожие курсы с помощью Pinecone
     results = index.query(vector, top_k=3, include_metadata=True)
 
     # Формируем контекст для OpenAI
@@ -41,7 +52,7 @@ def get_course_info(query):
 Если подходящего курса нет, предложи альтернативные направления в IT.
 """
 
-    # Запрашиваем OpenAI
+    # Запрашиваем OpenAI для создания ответа на основе контекста
     gpt_response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[{"role": "system", "content": "Ты — эксперт по IT-курсам."},
