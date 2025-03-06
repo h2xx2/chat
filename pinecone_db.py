@@ -15,7 +15,7 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 
 # Параметры индекса
 index_name = "cource"
-dimension = 1536
+dimension = 768
 metric = "cosine"
 
 # Проверяем, существует ли индекс. Если нет, создаём его с использованием ServerlessSpec.
